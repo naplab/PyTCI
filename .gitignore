@@ -2,9 +2,16 @@
 __pycache__/
 *.py[cod]
 *$py.class
+._*.py
+
+# PyTorch checkpoint files
+*.ckpt
 
 # C extensions
 *.so
+
+# MacOS files
+.DS_Store
 
 # Distribution / packaging
 .Python
