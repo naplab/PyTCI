@@ -1,6 +1,7 @@
 import os
 import glob
 import math
+import pickle
 import numpy as np
 import scipy as sp
 from typing import List
@@ -29,10 +30,12 @@ class Analyzer:
         output_path=None,
     ):
         """
+        Base class for performing Temporal Context Invariance (TCI) analysis.
+
         out_sr: sampling rate of (model) responses.
-        model: a function or pytorch Module with method `forward` that take input `x` and return response `y`. If set,
-                uses for inferring responses used in the analysis; if None, you have to read the responses from file,
-                using `read_responses`.
+        model: a callable object, like a function or pytorch Module with method `forward` that take input `x` and return
+                response `y`. If set, used for inferring responses used in the analysis; if None, you have to read the
+                responses from file, using `read_responses`.
         segment_durs: list of segment durations to consider in seconds, use default (20--2480 ms) if None.
         segment_maxdur: maximum duration of segment, used in case of 'natural' segment.
         segment_overlap: amount of overlap between adjacent elements of `x`, in milliseconds
@@ -82,9 +85,11 @@ class Analyzer:
 
     def load_segments(self, path, fmt='audio', preprocess=None):
         """
+        Load input segments from disk and preprocess them individually (optional).
+
         path: if a string, `path` is a directory containing audio files; if a list, `path` is a list of audio files.
         fmt: format of segment files. Currently accepted formats are 'audio' and 'numpy'.
-        preprocess: a preprocessing function applied to all segments individually in-memory.
+        preprocess: a preprocessing function or list of functions to be applied to all segments individually in-memory.
         """
         if not isinstance(path, (str, List)):
             raise ValueError('Parameter `path` should either be a string pointing to a directory, or a list of audio files.')
@@ -105,7 +110,7 @@ class Analyzer:
         """
         segments: an array of segment time-series.
         sr: sampling rate of segment data in `array`.
-        preprocess: a preprocessing function applied to all segments individually in-memory.
+        preprocess: a preprocessing function or list of functions to be applied to all segments individually in-memory.
         """
         if not isinstance(segments, List):
             raise ValueError('Parameter `array` should be an iterable of segment time-series.')
@@ -116,7 +121,11 @@ class Analyzer:
             sr = [sr] * len(segments)
         
         if preprocess:
-            segments, sr = zip([preprocess(x, s) for x, s in zip(segments, sr)])
+            if not isinstance(preprocess, List):
+                preprocess = [preprocess]
+            
+            for fx in preprocess:
+                segments, sr = zip([fx(x, s) for x, s in zip(segments, sr)])
         
         if len(set(sr)) != 1:
             raise RuntimeError('All segments need to have the same sampling rate after preprocessing.')
@@ -155,7 +164,9 @@ class Analyzer:
 
     def pick_seglen(self, xs, segdur):
         """
-        xs: list of segments
+        Pick subsegments of fixed duration `segdur` from the list of source segments `xs`.
+
+        xs: list of source segments.
         segdur: duration of subsegment to extract from source segments, in seconds.
         """
         seglen = round(segdur * self.in_sr)
@@ -442,4 +453,11 @@ class Analyzer:
         corrs = [self.cross_context_corr(segdur) for segdur in self.segment_durs]
         self.integration_windows = self.crossing(corrs)
 
+        if self.output_path:
+            with open(self.output_path, 'wb') as f:
+                pickle.dump({
+                    'cross_context_corrs': corrs,
+                    'integration_windows': self.integration_windows
+                }, f)
+        
         return self.integration_windows
