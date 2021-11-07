@@ -1,12 +1,8 @@
 import os
 import numpy as np
 
-# os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
-# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import torch
-import torch.multiprocessing
 import torchaudio
-import torchaudio.sox_effects as sox
 
 
 def wav2spec_fx(out_sr, freqbins=128, top_db=70):
