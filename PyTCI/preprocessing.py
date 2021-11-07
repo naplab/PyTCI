@@ -7,76 +7,80 @@ import torch
 import torch.multiprocessing
 import torchaudio
 import torchaudio.sox_effects as sox
-# torch.multiprocessing.set_sharing_strategy('file_system')
-from torch.cuda.amp import autocast
-import pytorch_lightning as pl
 
 
-def wav2spec_fx(in_sr, out_sr, freqbins=128, top_db=70):
+def wav2spec_fx(out_sr, freqbins=128, top_db=70):
     """
     Returns a function that converts the audio waveform to Mel-spectrogram.
 
-    in_sr: sampling rate of input waveform, in Hz.
     out_sr: sampling rate of output spectrogram, in Hz.
     freqbins: number of frequency bins in the output spectrogram.
     top_db: maximum difference between highest and lowest power in the spectrogram.
     """
-    parser = torch.nn.Sequential(
-        torchaudio.transforms.MelSpectrogram(in_sr, n_fft=1024, hop_length=int(in_sr/out_sr), f_min=20, f_max=8_000, n_mels=freqbins, power=2.0),
-        torchaudio.transforms.AmplitudeToDB('power', top_db=top_db),
-        type("Normalize", (torch.nn.Module,), dict(forward=lambda self, x: (x - x.max()).squeeze(0).T.float() / top_db + 1))()
-    )
+    def func(x, in_sr):
+        parser = torch.nn.Sequential(
+            torchaudio.transforms.MelSpectrogram(in_sr, n_fft=1024, hop_length=int(in_sr/out_sr), f_min=20, f_max=8_000, n_mels=freqbins, power=2.0),
+            torchaudio.transforms.AmplitudeToDB('power', top_db=top_db),
+            type("Normalize", (torch.nn.Module,), dict(forward=lambda self, x: (x - x.max()).squeeze(0).T.float() / top_db + 1))()
+        )
 
-    return parser
+        return parser(x), out_sr
+
+    return func
 
 
-def _sox_fx(in_sr, tfm):
+def _sox_fx(x, in_sr, tfm):
     """
     Returns a function that applies the SoX effects specified in `tfm` to an input signal `x`, assuming a
     sampling rate of `in_sr` for the input.
 
+    x: input audio signal with shape [time, channel].
     in_sr: sampling rate of input waveform, in Hz.
     tfm: list of SoX transformations to be applied to the input.
     """
-    return lambda x: sox.apply_effects_tensor(torch.from_numpy(x).T, in_sr, tfm)[0].squeeze(0).numpy()
+    x, out_sr = torchaudio.sox_effects.apply_effects_tensor(x.T.float(), in_sr, tfm)
+    return x.T, out_sr
 
 
-def audio_resample_fx(in_sr, to_sr, channels=1):
+def audio_resample_fx(to_sr, channels=1):
     """
     to_sr: target sampling rate, in Hz.
-    in_sr: input sampling rate, in Hz.
     channels: output channels for audio, set to 1 to convert stereo audio to mono.
     """
-    tfm = [['rate', str(to_sr)], ['channels', str(channels)]]
+    def func(x, in_sr):
+        tfm = [['rate', str(to_sr)], ['channels', str(channels)]]
+        return _sox_fx(x, in_sr, tfm)
 
-    return _sox_fx(in_sr, tfm)
+    return func
 
 
-def audio_tempo_fx(in_sr, scale_factor, audio_type='s'):
+def audio_tempo_fx(scale_factor, audio_type='s'):
     """
     Returns a function that time-stretches the audio by a fixed scaling factor, without chaning the pitch.
     To optimize performance on different types of audio, the `audio_type` parameter can be set. Supported
     types by SoX are: 's' (speech), 'm' (music), 'l' (linear).
 
-    in_sr: input sampling rate, in Hz.
     scale_factor: scaling factor used to stretch audio.
     audio_type: type of input audio, used to optimize stretching parameters for best results.
     """
-    tfm = [['tempo', '-'+audio_type, str(scale_factor)], ['rate', str(in_sr)]]
+    def func(x, in_sr):
+        tfm = [['tempo', '-'+audio_type, str(scale_factor)], ['rate', str(in_sr)]]
+        return _sox_fx(x, in_sr, tfm)
 
-    return _sox_fx(in_sr, tfm)
+    return func
 
 
-def audio_speed_fx(in_sr, scale_factor):
+def audio_speed_fx(scale_factor):
     """
     Returns a function that time-stretches the audio by a fixed scaling factor, without preserving pitch.
 
-    in_sr: input sampling rate, in Hz.
     scale_factor: factor by which to scale the audio.
     """
-    tfm = [['speed', str(scale_factor)], ['rate', str(in_sr)]]
+    def func(x, in_sr):
+        tfm = [['speed', str(scale_factor)], ['rate', str(in_sr)]]
+        return _sox_fx(x, in_sr, tfm)
 
-    return _sox_fx(in_sr, tfm)
+    return func
 
 
 def audio_pitch_fx(in_sr, semitones):
@@ -85,9 +89,11 @@ def audio_pitch_fx(in_sr, semitones):
 
     semitones: amount to shift pitch, in semitones.
     """
-    tfm = [['pitch', str(semitones)], ['rate', str(in_sr)]]
+    def func(x, in_sr):
+        tfm = [['pitch', str(semitones)], ['rate', str(in_sr)]]
+        return _sox_fx(x, in_sr, tfm)
 
-    return _sox_fx(in_sr, tfm)
+    return func
 
 
 def audio_reverb_fx(in_sr, reverberance, room_scale):
@@ -98,9 +104,11 @@ def audio_reverb_fx(in_sr, reverberance, room_scale):
     reverberance: strength of reverberance.
     room_scale: size of room to simulate reverberance in.
     """
-    tfm = [['reverb', '--wet-only', str(reverberance), '50', str(room_scale)], ['channels', '1']]
+    def func(x, in_sr):
+        tfm = [['reverb', '--wet-only', str(reverberance), '50', str(room_scale)], ['channels', '1']]
+        return _sox_fx(x, in_sr, tfm)
 
-    return _sox_fx(in_sr, tfm)
+    return func
 
 
 def audio_filter_fx(in_sr, cutoff_low, cutoff_high, bandpass=True):
@@ -118,16 +126,19 @@ def audio_filter_fx(in_sr, cutoff_low, cutoff_high, bandpass=True):
     if cutoff_low is None and cutoff_high is None:
         raise ValueError('At least one of `cutoff_low` and `cutoff_high` has to be set.')
     
-    if cutoff_low is None:
-        tfm = [['sinc', '-'+str(cutoff_high)]]
-    elif cutoff_high is None:
-        tfm = [['sinc', str(cutoff_low)]]
-    elif bandpass:
-        tfm = [['sinc', str(cutoff_low)+'-'+str(cutoff_high)]]
-    else:
-        tfm = [['sinc', str(cutoff_high)+'-'+str(cutoff_low)]]
+    def func(x, in_sr):
+        if cutoff_low is None:
+            tfm = [['sinc', '-'+str(cutoff_high)]]
+        elif cutoff_high is None:
+            tfm = [['sinc', str(cutoff_low)]]
+        elif bandpass:
+            tfm = [['sinc', str(cutoff_low)+'-'+str(cutoff_high)]]
+        else:
+            tfm = [['sinc', str(cutoff_high)+'-'+str(cutoff_low)]]
+        
+        return _sox_fx(x, in_sr, tfm)
     
-    return _sox_fx(in_sr, tfm)
+    return func
 
 
 def audio_inject_noise_fx(in_sr, noise_sources, random=True):

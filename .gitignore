@@ -4,8 +4,15 @@ __pycache__/
 *$py.class
 ._*.py
 
+# Resources for examples
+Examples/resources
+Examples/outputs
+
 # PyTorch checkpoint files
 *.ckpt
+
+# Jupyter checkpoints
+.ipynb_checkpoints
 
 # C extensions
 *.so

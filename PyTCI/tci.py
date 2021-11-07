@@ -2,9 +2,10 @@ import os
 import glob
 import math
 import pickle
+from typing import Iterable
+
 import numpy as np
-import scipy as sp
-from typing import List
+from scipy.interpolate import interp1d
 
 import torch
 import torchaudio
@@ -28,6 +29,7 @@ class Analyzer:
         comparison_method='random-random',
         device=torch.device('cpu'),
         output_path=None,
+        verbose=True
     ):
         """
         Base class for performing Temporal Context Invariance (TCI) analysis.
@@ -67,6 +69,7 @@ class Analyzer:
         self.segment_maxdur = segment_maxdur
         self.segment_overlap = segment_overlap
         self.segment_alignment = segment_alignment
+        self.comparison_method = comparison_method
 
         self.size_block = size_block
         self.size_context = size_context
@@ -76,6 +79,7 @@ class Analyzer:
 
         self.device = device
         self.output_path = output_path
+        self.verbose = verbose
 
         self.seq_A = None
         self.seq_A = None
@@ -83,7 +87,7 @@ class Analyzer:
         self.resp_A = None
         self.resp_B = None
 
-    def load_segments(self, path, fmt='audio', preprocess=None):
+    def load_segments(self, path, fmt='audio', preprocess=[]):
         """
         Load input segments from disk and preprocess them individually (optional).
 
@@ -91,47 +95,49 @@ class Analyzer:
         fmt: format of segment files. Currently accepted formats are 'audio' and 'numpy'.
         preprocess: a preprocessing function or list of functions to be applied to all segments individually in-memory.
         """
-        if not isinstance(path, (str, List)):
+        if not isinstance(path, (str, Iterable)):
             raise ValueError('Parameter `path` should either be a string pointing to a directory, or a list of audio files.')
 
         if isinstance(path, str):
-            path = glob.glob(os.path.join(dir, '*'))
+            path = glob.glob(os.path.join(path, '*'))
 
         if fmt == 'audio':
-            segments, sr = zip([torchaudio.load(file, channels_first=False) for file in path])
+            segments, sr = zip(*[torchaudio.load(file, channels_first=False) for file in path])
         elif fmt == 'numpy':
-            segments, sr = zip([np.load(file) for file in path])
+            segments, sr = zip(*[np.load(file, allow_pickle=True) for file in path])
         else:
             raise NotImplementedError()
 
         self.set_segments(segments, sr, preprocess)
 
-    def set_segments(self, segments, sr, preprocess=None):
+    def set_segments(self, segments, sr, preprocess=[]):
         """
         segments: an array of segment time-series.
         sr: sampling rate of segment data in `array`.
         preprocess: a preprocessing function or list of functions to be applied to all segments individually in-memory.
         """
-        if not isinstance(segments, List):
+        if not isinstance(segments, Iterable):
             raise ValueError('Parameter `array` should be an iterable of segment time-series.')
-        if not isinstance(sr, int):
-            raise ValueError('Parameter `sr` should be a positive integer indicating the sampling rate to use.')
+        if not (isinstance(sr, int) or isinstance(sr, Iterable) and np.all([isinstance(s, int) for s in sr])):
+            raise ValueError('Parameter `sr` should be a positive integer or a list of positive integers.')
         
-        if not isinstance(sr, List):
+        if not isinstance(sr, Iterable):
             sr = [sr] * len(segments)
         
+        segments = [torch.as_tensor(x, dtype=float) for x in segments]
+        
         if preprocess:
-            if not isinstance(preprocess, List):
+            if not isinstance(preprocess, Iterable):
                 preprocess = [preprocess]
             
             for fx in preprocess:
-                segments, sr = zip([fx(x, s) for x, s in zip(segments, sr)])
+                segments, sr = zip(*[fx(x, s) for x, s in zip(segments, sr)])
         
         if len(set(sr)) != 1:
             raise RuntimeError('All segments need to have the same sampling rate after preprocessing.')
 
         self.segments = segments
-        self.in_sr = sr
+        self.in_sr = sr[0]
 
     def set_channel_mask(self, mask):
         self.mask_channels = mask
@@ -145,14 +151,14 @@ class Analyzer:
         assert overlap % 2 == 0
         
         if overlap == 0:
-            return np.concatenate(x, axis=0)
+            return torch.cat(x, dim=0)
         
-        window = np.hanning(2*overlap + 3)[overlap+2:-1].reshape([-1]+[1]*(x[0].ndim-1))
+        window = torch.hann_window(2*overlap + 3)[overlap+2:-1].reshape([-1]+[1]*(x[0].ndim-1))
         
         pieces = []
         for i in range(len(x)):
             if i > 0:
-                pieces.append(x[i-1][len(x[i-1])-overlap:]*window + x[i][:overlap]*window[::-1])
+                pieces.append(x[i-1][len(x[i-1])-overlap:]*window + x[i][:overlap]*window.flip(0))
             if i == 0:
                 pieces.append(x[i][overlap//2:len(x[i])-overlap])
             elif i == len(x)-1:
@@ -160,7 +166,7 @@ class Analyzer:
             else:
                 pieces.append(x[i][overlap:len(x[i])-overlap])
         
-        return np.concatenate(pieces, axis=0)
+        return torch.cat(pieces, dim=0)
 
     def pick_seglen(self, xs, segdur):
         """
@@ -179,7 +185,7 @@ class Analyzer:
         
         segments = []
         for x in xs:
-            x = np.pad(x, ((math.floor(overlap/2), math.ceil(overlap/2)), (0, 0)))
+            x = torch.nn.functional.pad(x, (0, 0, math.floor(overlap/2), math.ceil(overlap/2)))
             discard = len(x) - seglen - overlap
             if discard > 0:
                 if self.segment_alignment == 'center':
@@ -196,7 +202,7 @@ class Analyzer:
             else:
                 raise RuntimeError('All segment time-series must be at least as long as the target segment duration.')
 
-        return np.stack(segments, axis=0)
+        return torch.stack(segments, dim=0)
 
     def sequence(self, segdur, mode):
         """
@@ -248,7 +254,7 @@ class Analyzer:
 
         # extract extra margins around shared segments in case of noncausality, etc.
         nmargn = math.ceil(self.size_margin / segdur)
-        x = np.concatenate([np.roll(x, k, axis=0) for k in range(nmargn, -nmargn-1, -1)], axis=1)
+        x = torch.cat([torch.roll(x, k, 0) for k in range(nmargn, -nmargn-1, -1)], dim=1)
         x = x[:, round(nmargn*segdur*self.out_sr-self.size_margin*self.out_sr):round(x.shape[1]-nmargn*segdur*self.out_sr+self.size_margin*self.out_sr)]
 
         # if natural-random comparison, extract relevant part of natural segment response
@@ -279,7 +285,7 @@ class Analyzer:
         Write two stimulus sequences for all segment durations to disk.
 
         path: location of directory to write the stimulus sequences.
-        fmt: format of sequence files. Currently supported formats are 'audio' and 'numpy'.
+        fmt: format of sequence files. Currently supported formats are 'audio', 'numpy', and 'torch'.
         """
         self.seq_A = dict([
             (segdur, self.sequence(segdur, 1))
@@ -290,31 +296,44 @@ class Analyzer:
             for segdur in self.segment_durs
         ])
         
+        if os.path.exists(path):
+            print(f'WARNING: directory "{path}" exists. Rewriting...')
+        os.makedirs(path, exist_ok=True)
+
         for segdur in self.seq_A:
             if fmt == 'audio':
                 torchaudio.save(f'{path}/seq_A_{round(segdur*1000)}ms.wav', self.seq_A[segdur], self.in_sr)
                 torchaudio.save(f'{path}/seq_B_{round(segdur*1000)}ms.wav', self.seq_B[segdur], self.in_sr)
             elif fmt == 'numpy':
-                np.save(f'{path}/seq_A_{round(segdur*1000)}ms.npy', (self.seq_A[segdur], self.in_sr))
-                np.save(f'{path}/seq_B_{round(segdur*1000)}ms.npy', (self.seq_B[segdur], self.in_sr))
+                np.save(f'{path}/seq_A_{round(segdur*1000)}ms.npy', self.seq_A[segdur].numpy())
+                np.save(f'{path}/seq_B_{round(segdur*1000)}ms.npy', self.seq_B[segdur].numpy())
+            elif fmt == 'torch':
+                torch.save(self.seq_A[segdur], f'{path}/seq_A_{round(segdur*1000)}ms.pt')
+                torch.save(self.seq_B[segdur], f'{path}/seq_B_{round(segdur*1000)}ms.pt')
             else:
                 raise NotImplementedError()
 
-    def read_responses(self, path, fmt='npy'):
+    def read_responses(self, path, fmt='numpy'):
         """
         Read two response sequences for all segment durations from disk.
 
         path: location of directory from which to read the response sequences.
-        fmt: format of sequence files. Currently supported formats are 'numpy'.
+        fmt: format of sequence files. Currently supported formats are 'numpy' and 'torch'.
         """
         resp_A, resp_B = dict(), dict()
         for segdur in self.segment_durs:
             if fmt == 'numpy':
-                resp_A[segdur], _ = np.load(f'{path}/resp_A_{round(segdur*1000)}ms.npy')
-                resp_B[segdur], _ = np.load(f'{path}/resp_B_{round(segdur*1000)}ms.npy')
+                resp_A[segdur] = np.load(f'{path}/resp_A_{round(segdur*1000)}ms.npy')
+                resp_B[segdur] = np.load(f'{path}/resp_B_{round(segdur*1000)}ms.npy')
+            elif fmt == 'torch':
+                resp_A[segdur] = torch.load(f'{path}/resp_A_{round(segdur*1000)}ms.pt')
+                resp_B[segdur] = torch.load(f'{path}/resp_A_{round(segdur*1000)}ms.pt')
             else:
                 raise NotImplementedError()
-        
+            
+            resp_A[segdur] = torch.as_tensor(resp_A[segdur], dtype=float, device=self.device)
+            resp_B[segdur] = torch.as_tensor(resp_B[segdur], dtype=float, device=self.device)
+
         self.resp_A = resp_A
         self.resp_B = resp_B
 
@@ -329,20 +348,19 @@ class Analyzer:
         nbatch = math.floor(self.size_block / segdur)
         ncontx = math.ceil(self.size_context / segdur)
         ntargt = nbatch - ncontx*2
-        num_batch = math.ceil(x.shape[0] / ntargt)
+        num_batch = math.ceil(len(x) / ntargt / seglen)
         
         z = []
-        x = np.concatenate((x[-ncontx*seglen:], x, x[:ncontx*seglen]), axis=0)
+        x = torch.cat((x[-ncontx*seglen:], x, x[:ncontx*seglen]), dim=0)
         for k in range(num_batch):
-            # prepare batch input
-            xb = x[(k*ntargt)*seglen:(k*ntargt+nbatch)*seglen]
-            xb = torch.as_tensor(xb, dtype='float', device=self.device)
-            
+            # batch input
+            xb = x[(k*ntargt)*seglen:(k*ntargt+nbatch)*seglen].float().to(self.device)
+
             # run model inference
             zb = self.model(xb)[ncontx*seglen:-ncontx*seglen, ..., self.mask_channels]
             z.append(zb)
         
-        return np.concatenate(z, axis=0)
+        return torch.cat(z, dim=0)
 
     def crossing(self, corrs):
         """
@@ -350,25 +368,20 @@ class Analyzer:
 
         corrs: correlation matrix for all segment durations, with shape [segments x channels]
         """
-        corrs = np.nanmax(corrs, axis=0)
+        corrs = np.stack([np.nanmax(c, axis=0) for c in corrs], axis=0)
 
         seglens = np.log(self.segment_durs)
         x_intrp = np.linspace(seglens.min(), seglens.max(), 1000)
         
-        corrs[~np.isfinite(corrs)] = 0.01
-        corrs[corrs < 0.01] = 0.01
-        #corrs = np.log(corrs)
-        #thresh = np.log(thresh)
-        
         xings = np.zeros(corrs.shape[1])
         for j in range(corrs.shape[1]):
-            y_intrp = sp.interpolate.interp1d(
+            y_intrp = interp1d(
                 seglens,
                 np.convolve(np.pad(corrs[:, j], [(1, 1)], 'edge'), [0.15, 0.7, 0.15], 'valid')
             )(x_intrp)
             
-            passthresh = np.where(y_intrp >= self.thresh_ccc)[0]
-            xings[j] = round(np.exp(x_intrp[passthresh[0]]), 1) if len(passthresh) > 0 else np.nan
+            passthresh = np.where(y_intrp >= self.threshold)[0]
+            xings[j] = round(np.exp(x_intrp[passthresh[0]]), 3) if len(passthresh) > 0 else np.nan
         
         return xings
     
@@ -398,28 +411,29 @@ class Analyzer:
             return (a * b).sum(axis=axis)
         
         if self.size_batch_corr:
-            return np.concatenate([
+            return torch.cat([
                 corr(
-                    torch.from_numpy(seq_A[:, k*self.size_batch_corr:(k+1)*self.size_batch_corr]).to(self.device),
-                    torch.from_numpy(seq_B[:, k*self.size_batch_corr:(k+1)*self.size_batch_corr]).to(self.device),
+                    seq_A[:, k*self.size_batch_corr:(k+1)*self.size_batch_corr].to(self.device),
+                    seq_B[:, k*self.size_batch_corr:(k+1)*self.size_batch_corr].to(self.device),
                     axis=0
-                ).cpu().numpy() for k in range(math.ceil(seq_A.shape[1] / self.size_batch_corr))
-            ], axis=0)
+                ).cpu() for k in range(math.ceil(seq_A.shape[1] / self.size_batch_corr))
+            ], axis=0).numpy()
         else:
             return corr(
-                torch.from_numpy(seq_A).to(self.device),
-                torch.from_numpy(seq_B).to(self.device),
+                seq_A.to(self.device),
+                seq_B.to(self.device),
                 axis=0
             ).cpu().numpy()
 
-    def cross_context_corr(self, segdur):
+    def compute_cross_context_corr(self, segdur):
         """
         Compute cross-context correlation for specified segment duration of `segdur`. If model is provided, uses
         the model to infer responses to input sequences. If model is set to None, uses loaded response sequences.
 
         segdur: duration of segment to use for calculating cross-context correlation, in seconds.
         """
-        print(f'>> {segdur*1000}ms', flush=True)
+        if self.verbose:
+            print(f'|--> {round(segdur*1000)}ms', flush=True)
         
         # first segment ordering
         if self.model:
@@ -446,18 +460,26 @@ class Analyzer:
 
         return corr
 
-    def run(self):
+    def estimate_integration_window(self):
         """
         Run TCI analysis and store returned results.
         """
-        corrs = [self.cross_context_corr(segdur) for segdur in self.segment_durs]
-        self.integration_windows = self.crossing(corrs)
+        if self.verbose:
+            print(f'> Computing cross-context correlations:', flush=True)
+        self._cross_context_corrs = [self.compute_cross_context_corr(segdur) for segdur in self.segment_durs]
+
+        if self.verbose:
+            print(f'> Computing integration windows:', flush=True)
+        self._integration_windows = self.crossing(self._cross_context_corrs)
+
+        if self.verbose:
+            print(f'> Done!', flush=True)
 
         if self.output_path:
             with open(self.output_path, 'wb') as f:
                 pickle.dump({
-                    'cross_context_corrs': corrs,
-                    'integration_windows': self.integration_windows
+                    'cross_context_corrs': self._cross_context_corrs,
+                    'integration_windows': self._integration_windows
                 }, f)
         
-        return self.integration_windows
+        return self._integration_windows
