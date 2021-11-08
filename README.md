@@ -18,11 +18,9 @@ This toolbox implements the analyses described in the above NeurIPS paper. We es
 
 To demonstrate the application of the toolbox, two Jupyter notebooks have been provided in the <a href="https://github.com/naplab/PyTCI/tree/main/Examples">`Examples/`</a> directory:
 
-1. <a href="https://github.com/naplab/PyTCI/blob/main/Examples/Example-Toy.ipynb"><strong>Basic</strong></a>: A series of basic examples demonstrating how to use different features of the toolbox on a simple toy model.
+1. <a href="https://github.com/naplab/PyTCI/blob/main/Examples/Example-Toy.ipynb"><strong>Basic</strong></a>: Shows how to apply the TCI method to a toy model that integrates sound energy within a gamma-distributed window.
 
-2. <a href="https://github.com/naplab/PyTCI/blob/main/Examples/Example-DeepSpeech.ipynb"><strong>Advanced</strong></a>: Applying the toolbox to a complicated PyTorch model and analyzing activations at different layers of the model. This notebook requires the pretrained model and speech audio clips in `Examples/resources.tar` to be extracted and placed in a directory named `Examples/resources`.
-
-The toolbox is intended to be easy-to-use but customizable, so different parts of the method can be swapped out. Refer to the method descriptions for a list of available customizations.
+2. <a href="https://github.com/naplab/PyTCI/blob/main/Examples/Example-DeepSpeech.ipynb"><strong>Advanced</strong></a>: Shows how to use the TCI method to estimate integration windows from the DeepSpeech2 model described in the paper, implemented in PyTorch. This notebook requires the pretrained model and speech audio clips in `Examples/resources.tar` to be extracted and placed in a directory named `Examples/resources`.
 
 <strong>NOTE</strong>: These notebooks might not render as intended on GitHub. For correct rendering, open them locally in a Jupyter notebook.
 
