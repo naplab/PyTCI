@@ -22,6 +22,5 @@ setuptools.setup(
         'scipy',
         'torch',
         'torchaudio',
-        'pickle'
     ],
 )
