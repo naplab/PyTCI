@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="PyTCI",
-    version="0.1.0",
+    version="0.1",
     author="Menoua Keshishian",
     author_email="mk4011@columbia.edu",
     description="Toolbox to analyze temporal context invariance of deep neural networks",
