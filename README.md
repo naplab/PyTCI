@@ -1,14 +1,17 @@
 # PyTCI
 
-A toolbox to analyze temporal context invariance of pytorch models.
+A toolbox that estimates the integration window of a sensory response using the "Temporal Context Invariance" paradigm (TCI).
 
-## Method
+## The TCI method
 
-The temporal-context invariance paradigm is used to estimate the size of the stimulus window within which stimuli alter the response, and outside of which they have little impact. The method is introduced for biological and artificial systems in the following papers:
+Integration windows are defined as the time window within which stimuli alter a sensory response and outside of which stimuli have little effect. Integration windows provide a simple and general way to define the analysis timescale of a response. We estimate integration windows by presenting segments of natural stimuli in two different pseudorandom orders, such that the same segment occurs in two different contexts (is surrounded by different segments). We then estimate the smallest segment duration outside of which stimuli have little effect on the response. The TCI paradigm was initially developed to estimate integration windows for biological neural systems:
+
 1. <a href="https://www.biorxiv.org/content/10.1101/2020.09.30.321687v2">Multiscale integration organizes hierarchical computation in human auditory cortex</a><br/>
+
+The method however can be applied to any sensory response, and we have recently used the method to understand how deep speech recognition systems learn to flexibly integrate across multiple timescales:
 2. <a href="https://neurips.cc">Understanding Adaptive, Multiscale Temporal Integration In Deep Speech Recognition Systems</a>
 
-Brief description of the paradigm coming soon... In the meantime, refer to the referenced papers for a full description of the method and its potential applications.
+This toolbox implements the analyses described in the above NeurIPS paper. We estimate context invariance using the "cross-context correlation" and then estimate the integration window by finding the smallest segment duration needed to achieve a given correlation threshold. Note that this approach is not robust to data noise and thus is not appropriate for biological neural systems (we will be releasing a different toolbox soon that addresses this limitation). 
 
 ## Usage
 
