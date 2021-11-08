@@ -79,7 +79,7 @@ def audio_speed_fx(scale_factor):
     return func
 
 
-def audio_pitch_fx(in_sr, semitones):
+def audio_pitch_fx(semitones):
     """
     Returns a function that shifts the pitch of audio, by a fixed number of semitones.
 
@@ -92,11 +92,10 @@ def audio_pitch_fx(in_sr, semitones):
     return func
 
 
-def audio_reverb_fx(in_sr, reverberance, room_scale):
+def audio_reverb_fx(reverberance, room_scale):
     """
     Returns a function that adds reverberance to audio.
 
-    in_sr: input sampling rate, in Hz.
     reverberance: strength of reverberance.
     room_scale: size of room to simulate reverberance in.
     """
@@ -107,14 +106,13 @@ def audio_reverb_fx(in_sr, reverberance, room_scale):
     return func
 
 
-def audio_filter_fx(in_sr, cutoff_low, cutoff_high, bandpass=True):
+def audio_filter_fx(cutoff_low, cutoff_high, bandpass=True):
     """
     Returns a function that applies frequency filtering to audio, including lowpass, highpass, bandpass,
     and bandstop filtering. To perform highpass filtering set `cutoff_high` to None; for a lowpass filter
     set `cutoff_low` to None; for a bandpass filter set both cutoff frequencies and `bandpass` to True;
     for a bandstop filter set both cutoff frequencies and `bandpass` to False.
 
-    in_sr: input sampling rate, in Hz.
     cutoff_low: lower cutoff frequency of filtering, in Hz.
     cutoff_high: higher cutoff frequency of filtering, in Hz.
     bandpass: whether to apply bandpass, or bandtop filtering.
@@ -137,7 +135,7 @@ def audio_filter_fx(in_sr, cutoff_low, cutoff_high, bandpass=True):
     return func
 
 
-def audio_inject_noise_fx(in_sr, noise_sources, random=True):
+def audio_inject_noise_fx(noise_sources, random=True):
     """
     Returns a function that injects additive noise to audio, selected from a list of noise sources.
     """

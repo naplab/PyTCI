@@ -29,7 +29,7 @@ class Analyzer:
         comparison_method='random-random',
         device=torch.device('cpu'),
         output_path=None,
-        verbose=True
+        verbose=1
     ):
         """
         Base class for performing Temporal Context Invariance (TCI) analysis.
@@ -244,12 +244,11 @@ class Analyzer:
         """
         if not isinstance(mode, int) or mode < -1:
             raise ValueError('Parameter `mode` has to be an integer >= -1.')
-
+        
         # reshape sequence into separate segments
-        if mode < 0:
-            seglen = round(self.segment_maxdur * self.out_sr)
-        else:
-            seglen = round(segdur * self.out_sr)
+        seglen_t = round(segdur * self.out_sr)
+        segdur = self.segment_maxdur if mode < 0 else segdur
+        seglen = round(segdur * self.out_sr)
         x = x.reshape((len(x)//seglen, seglen, x.shape[-1]))
 
         # extract extra margins around shared segments in case of noncausality, etc.
@@ -259,8 +258,7 @@ class Analyzer:
 
         # if natural-random comparison, extract relevant part of natural segment response
         if mode < 0:
-            seglen = round(segdur * self.out_sr)
-            discard = x.shape[1] - seglen
+            discard = x.shape[1] - seglen_t - 2*round(self.size_margin * self.out_sr)
             if discard > 0:
                 if self.segment_alignment == 'center':
                     x = x[:, math.floor(discard/2):-math.ceil(discard/2)]
@@ -337,6 +335,7 @@ class Analyzer:
         self.resp_A = resp_A
         self.resp_B = resp_B
 
+    @torch.no_grad()
     def batch_infer(self, x, segdur):
         """
         Infer model responses to input sequence `x` composed of segments of length `segdur`, performed in batches.
@@ -344,20 +343,21 @@ class Analyzer:
         x: input sequence to the model.
         segdur: duration of segments composing the sequence `x`, in seconds.
         """
-        seglen = round(segdur * self.in_sr)
+        seglen_in = round(segdur * self.in_sr)
+        seglen_out = round(segdur * self.out_sr)
         nbatch = math.floor(self.size_block / segdur)
         ncontx = math.ceil(self.size_context / segdur)
         ntargt = nbatch - ncontx*2
-        num_batch = math.ceil(len(x) / ntargt / seglen)
+        num_batch = math.ceil(len(x) / ntargt / seglen_in)
         
         z = []
-        x = torch.cat((x[-ncontx*seglen:], x, x[:ncontx*seglen]), dim=0)
+        x = torch.cat((x[-ncontx*seglen_in:], x, x[:ncontx*seglen_in]), dim=0)
         for k in range(num_batch):
             # batch input
-            xb = x[(k*ntargt)*seglen:(k*ntargt+nbatch)*seglen].float().to(self.device)
+            xb = x[(k*ntargt)*seglen_in:(k*ntargt+nbatch)*seglen_in].float().to(self.device)
 
             # run model inference
-            zb = self.model(xb)[ncontx*seglen:-ncontx*seglen, ..., self.mask_channels]
+            zb = self.model(xb)[ncontx*seglen_out:-ncontx*seglen_out, ..., self.mask_channels]
             z.append(zb)
         
         return torch.cat(z, dim=0)
@@ -425,6 +425,7 @@ class Analyzer:
                 axis=0
             ).cpu().numpy()
 
+    @torch.no_grad()
     def compute_cross_context_corr(self, segdur):
         """
         Compute cross-context correlation for specified segment duration of `segdur`. If model is provided, uses
@@ -432,7 +433,7 @@ class Analyzer:
 
         segdur: duration of segment to use for calculating cross-context correlation, in seconds.
         """
-        if self.verbose:
+        if self.verbose >= 2:
             print(f'|--> {round(segdur*1000)}ms', flush=True)
         
         # first segment ordering
@@ -460,19 +461,20 @@ class Analyzer:
 
         return corr
 
+    @torch.no_grad()
     def estimate_integration_window(self):
         """
         Run TCI analysis and store returned results.
         """
-        if self.verbose:
-            print(f'> Computing cross-context correlations:', flush=True)
+        if self.verbose >= 1:
+            print(f'> Computing cross-context correlations...', flush=True)
         self._cross_context_corrs = [self.compute_cross_context_corr(segdur) for segdur in self.segment_durs]
 
-        if self.verbose:
-            print(f'> Computing integration windows:', flush=True)
+        if self.verbose >= 1:
+            print(f'> Computing integration windows...', flush=True)
         self._integration_windows = self.crossing(self._cross_context_corrs)
 
-        if self.verbose:
+        if self.verbose >= 1:
             print(f'> Done!', flush=True)
 
         if self.output_path:
