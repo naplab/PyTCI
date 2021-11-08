@@ -20,6 +20,8 @@ To demonstrate the application of the toolbox, two Jupyter notebooks have been p
 
 The toolbox is intended to be easy-to-use but customizable, so different parts of the method can be swapped out. Refer to the method descriptions for a list of available customizations.
 
+<strong>NOTE</strong>: These notebooks might not render as intended on GitHub. For correct rendering, open them locally in a Jupyter notebook.
+
 ## Installation
 
 To install this package through pip, run the following command:
