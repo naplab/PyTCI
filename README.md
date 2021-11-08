@@ -9,6 +9,7 @@ Integration windows are defined as the time window within which stimuli alter a 
 1. <a href="https://www.biorxiv.org/content/10.1101/2020.09.30.321687v2">Multiscale integration organizes hierarchical computation in human auditory cortex</a><br/>
 
 The method however can be applied to any sensory response, and we have recently used the method to understand how deep speech recognition systems learn to flexibly integrate across multiple timescales:
+
 2. <a href="https://neurips.cc">Understanding Adaptive, Multiscale Temporal Integration In Deep Speech Recognition Systems</a>
 
 This toolbox implements the analyses described in the above NeurIPS paper. We estimate context invariance using the "cross-context correlation" and then estimate the integration window by finding the smallest segment duration needed to achieve a given correlation threshold. Note that this approach is not robust to data noise and thus is not appropriate for biological neural systems (we will be releasing a different toolbox soon that addresses this limitation). 
