@@ -1,0 +1,21 @@
+@inproceedings{
+keshishian2021understanding,
+title={Understanding Adaptive, Multiscale Temporal Integration In Deep Speech Recognition Systems},
+author={Menoua Keshishian and Samuel Victor Norman-Haignere and Nima Mesgarani},
+booktitle={Thirty-Fifth Conference on Neural Information Processing Systems},
+year={2021},
+url={https://openreview.net/forum?id=h4es0CIohF}
+}
+
+@article {Norman-Haignere2020.09.30.321687,
+	author = {Norman-Haignere, Sam V and Long, Laura K. and Devinsky, Orrin and Doyle, Werner and Irobunda, Ifeoma and Merricks, Edward M. and Feldstein, Neil A. and McKhann, Guy M. and Schevon, Catherine A. and Flinker, Adeen and Mesgarani, Nima},
+	title = {Multiscale integration organizes hierarchical computation in human auditory cortex},
+	elocation-id = {2020.09.30.321687},
+	year = {2020},
+	doi = {10.1101/2020.09.30.321687},
+	publisher = {Cold Spring Harbor Laboratory},
+	abstract = {To derive meaning from sound, the brain must integrate information across tens (e.g. phonemes) to hundreds (e.g. words) of milliseconds, but the neural computations that enable multiscale integration remain unclear. Prior evidence suggests that human auditory cortex analyzes sound using both generic acoustic features (e.g. spectrotemporal modulation) and category-specific computations, but how these putatively distinct computations integrate temporal information is unknown. To answer this question, we developed a novel method to estimate neural integration periods and applied the method to intracranial recordings from human epilepsy patients. We show that integration periods increase three-fold as one ascends the auditory cortical hierarchy. Moreover, we find that electrodes with short integration periods (~50-150 ms) respond selectively to spectrotemporal modulations, while electrodes with long integration periods (~200-300 ms) show prominent selectivity for sound categories such as speech and music. These findings reveal how multiscale temporal analysis organizes hierarchical computation in human auditory cortex.Competing Interest StatementThe authors have declared no competing interest.},
+	URL = {https://www.biorxiv.org/content/early/2020/10/12/2020.09.30.321687},
+	eprint = {https://www.biorxiv.org/content/early/2020/10/12/2020.09.30.321687.full.pdf},
+	journal = {bioRxiv}
+}
