@@ -38,7 +38,7 @@ def _sox_fx(x, in_sr, tfm):
     return x.T, out_sr
 
 
-def audio_resample_fx(to_sr, channels=1):
+def resample_fx(to_sr, channels=1):
     """
     to_sr: target sampling rate, in Hz.
     channels: output channels for audio, set to 1 to convert stereo audio to mono.
@@ -50,7 +50,7 @@ def audio_resample_fx(to_sr, channels=1):
     return func
 
 
-def audio_tempo_fx(scale_factor, audio_type='s'):
+def tempo_fx(scale_factor, audio_type='s'):
     """
     Returns a function that time-stretches the audio by a fixed scaling factor, without chaning the pitch.
     To optimize performance on different types of audio, the `audio_type` parameter can be set. Supported
@@ -66,7 +66,7 @@ def audio_tempo_fx(scale_factor, audio_type='s'):
     return func
 
 
-def audio_speed_fx(scale_factor):
+def speed_fx(scale_factor):
     """
     Returns a function that time-stretches the audio by a fixed scaling factor, without preserving pitch.
 
@@ -79,7 +79,7 @@ def audio_speed_fx(scale_factor):
     return func
 
 
-def audio_pitch_fx(semitones):
+def pitch_fx(semitones):
     """
     Returns a function that shifts the pitch of audio, by a fixed number of semitones.
 
@@ -92,7 +92,7 @@ def audio_pitch_fx(semitones):
     return func
 
 
-def audio_reverb_fx(reverberance, room_scale):
+def reverb_fx(reverberance, room_scale):
     """
     Returns a function that adds reverberance to audio.
 
@@ -106,7 +106,7 @@ def audio_reverb_fx(reverberance, room_scale):
     return func
 
 
-def audio_filter_fx(cutoff_low, cutoff_high, bandpass=True):
+def filter_fx(cutoff_low, cutoff_high, bandpass=True):
     """
     Returns a function that applies frequency filtering to audio, including lowpass, highpass, bandpass,
     and bandstop filtering. To perform highpass filtering set `cutoff_high` to None; for a lowpass filter
@@ -135,7 +135,7 @@ def audio_filter_fx(cutoff_low, cutoff_high, bandpass=True):
     return func
 
 
-def audio_inject_noise_fx(noise_sources, random=True):
+def inject_noise_fx(noise_sources, random=True):
     """
     Returns a function that injects additive noise to audio, selected from a list of noise sources.
     """
