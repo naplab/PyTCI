@@ -16,18 +16,16 @@ This toolbox implements the analyses described in the above NeurIPS paper. We es
 
 ## Usage
 
-To demonstrate the application of the toolbox, two Jupyter notebooks have been provided in the <a href="https://github.com/naplab/PyTCI/tree/main/Examples">`Examples/`</a> directory:
+To demonstrate the application of the toolbox, two Jupyter notebooks have been provided in the "Examples" directory:
 
-1. <a href="https://github.com/naplab/PyTCI/blob/main/Examples/Example-Toy.ipynb"><strong>Basic</strong></a>: Shows how to apply the TCI method to a toy model that integrates sound energy within a gamma-distributed window.
+1. <a href="https://nbviewer.org/github/naplab/PyTCI/blob/main/Examples/Example-Toy.ipynb"><strong>Example-Toy</strong></a>: Shows how to apply the TCI method to a toy model that integrates sound energy within a gamma-distributed window. Covers most of the functionality of the toolbox.
 
-2. <a href="https://github.com/naplab/PyTCI/blob/main/Examples/Example-DeepSpeech.ipynb"><strong>Advanced</strong></a>: Shows how to use the TCI method to estimate integration windows from the DeepSpeech2 model described in the paper, implemented in PyTorch. This notebook requires the pretrained model and speech audio clips in `Examples/resources.tar` to be extracted and placed in a directory named `Examples/resources`.
+2. <a href="https://nbviewer.org/github/naplab/PyTCI/blob/main/Examples/Example-DeepSpeech.ipynb"><strong>Example-DeepSpeech</strong></a>: Shows how to use the TCI method to estimate integration windows from the DeepSpeech2 model described in the paper, implemented in PyTorch. This notebook requires the pretrained model and speech audio clips in `Examples/resources.tar` to be extracted and placed in a directory named `Examples/resources`. It also has extra dependencies that need to be installed.
 
-<strong>NOTE</strong>: These notebooks might not render as intended on GitHub. For correct rendering, open them locally in a Jupyter notebook.
+<strong>NOTE</strong>: These notebooks might not render as intended on GitHub. For correct rendering, open them locally in a Jupyter notebook or using nbviewer.
 
 ## Installation
 
-To install this package through pip, run the following command:
+To install or update this package through pip, run the following command:
 
 `pip install git+https://github.com/naplab/PyTCI.git`
-
-You can use the same command to update the package.
